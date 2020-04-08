@@ -11,11 +11,9 @@ staff_team = db.Table('user_team', db.metadata,
 
 # entity tables
 
-
 class User(db.Model):
     """Model for a user accounts."""
 
-    __tablename__ = 'user'
     user_id = db.Column(db.Integer, primary_key=True)
 
     first_name = db.Column(db.String(64),
@@ -29,17 +27,29 @@ class User(db.Model):
                          nullable=False)
 
     email = db.Column(db.String(80),
-                      index=True,
-                      unique=False,
+                      index=False,
+                      unique=True,
                       nullable=False)
 
+    avatar_url = db.Column(db.String(128),
+                      index=False,
+                      unique=False,
+                      nullable=True)
+
+    role = db.Column(db.String(64),
+                           index=False,
+                           unique=False,
+                           nullable=False)
+
     # one to many
-    teams = db.relationship('Team', backref='user', lazy=True)
-    review_authorities = db.relationship('Review', db.ForeignKey('user.user_id'))
-    review_targets = db.relationship('Review', db.ForeignKey('user.user_id'))
+    teams = db.relationship('Team', backref='member')
+
+    # one to one
+    review_authorities = db.relationship('Review', db.ForeignKey('User.user_id'))
+    review_targets = db.relationship('Review', db.ForeignKey('User.user_id'))
 
     # many to many
-    team = db.relationship('Team', secondary=staff_team)
+    team = db.relationship('Team', secondary=staff_team, backref=db.backref('members', lazy='dynamic'))
 
     def __repr__(self):
         return f'<User {self.first_name} {self.last_name} ({self.email})>'
@@ -48,7 +58,6 @@ class User(db.Model):
 class Team(db.Model):
     """Model for a team."""
 
-    __tablename__ = 'team'
     team_id = db.Column(db.Integer, primary_key=True)
 
     owner_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
@@ -58,7 +67,7 @@ class Team(db.Model):
                           unique=False,
                           nullable=False)
 
-    appraisals = db.relationship('appraisal', backref='user', lazy=True)
+    appraisals = db.relationship('Appraisal', backref='team', lazy=True)
 
     def __repr__(self):
         return f'<Team  {self.name}>'
@@ -67,7 +76,6 @@ class Team(db.Model):
 class Appraisal(db.Model):
     """Model for a appraisal."""
 
-    __tablename__ = 'appraisal'
     appraisal_id = db.Column(db.Integer, primary_key=True)
 
     team_id = db.Column(db.Integer, db.ForeignKey('team.team_id'), nullable=False)
@@ -88,7 +96,6 @@ class Appraisal(db.Model):
 class Review(db.Model):
     """Model for a review."""
 
-    __tablename__ = 'review'
     review_id = db.Column(db.Integer, primary_key=True)
 
     # one to many
@@ -118,8 +125,6 @@ class Review(db.Model):
 
 class ReviewData(db.Model):
     """Model for a review data."""
-
-    __tablename__ = 'review_data'
 
     review_id = db.Column(db.Integer, db.ForeignKey('review.review_id'), primary_key=True)
 

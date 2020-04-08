@@ -15,11 +15,15 @@ def create_user():
     first_name = req_dict['first_name']
     last_name = req_dict['last_name']
     email = req_dict['email']
+    role = req_dict['role']
+    avatar_url = req_dict['avatar_url']
 
     if first_name and last_name and email:
         new_user = User(first_name=first_name,
                         last_name=last_name,
-                        email=email)
+                        email=email,
+                        role=role,
+                        avatar_url=avatar_url)
 
         db.session.add(new_user)
         db.session.commit()
