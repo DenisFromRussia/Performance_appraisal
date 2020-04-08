@@ -4,9 +4,9 @@ from . import db
 # many-to-many tables
 
 
-staff_team = db.Table('user_team', db.metadata,
-                          db.Column('user_id', db.Integer, db.ForeignKey('user.user_id')),
-                          db.Column('team_id', db.Integer, db.ForeignKey('team.team_id'))
+user_team = db.Table('user_team',
+                      db.Column('user_id', db.Integer, db.ForeignKey('user.user_id')),
+                      db.Column('team_id', db.Integer, db.ForeignKey('team.team_id'))
                         )
 
 # entity tables
@@ -41,15 +41,8 @@ class User(db.Model):
                            unique=False,
                            nullable=False)
 
-    # one to many
-    teams = db.relationship('Team', backref='member')
-
-    # one to one
-    review_authorities = db.relationship('Review', db.ForeignKey('User.user_id'))
-    review_targets = db.relationship('Review', db.ForeignKey('User.user_id'))
-
     # many to many
-    team = db.relationship('Team', secondary=staff_team, backref=db.backref('members', lazy='dynamic'))
+    teams = db.relationship('Team', secondary=user_team, backref=db.backref('members'))
 
     def __repr__(self):
         return f'<User {self.first_name} {self.last_name} ({self.email})>'
@@ -64,10 +57,11 @@ class Team(db.Model):
 
     name = db.Column(db.String(64),
                           index=False,
-                          unique=False,
+                          unique=True,
                           nullable=False)
 
-    appraisals = db.relationship('Appraisal', backref='team', lazy=True)
+    # one to many
+    appraisals = db.relationship('Appraisal', backref='team')
 
     def __repr__(self):
         return f'<Team  {self.name}>'
@@ -89,6 +83,8 @@ class Appraisal(db.Model):
                         index=False,
                         unique=False,
                         nullable=False)
+
+    reviews = db.relationship('Review', backref='appraisal')
 
     def __repr__(self):
         return f'<Appraisal by team {self.team_id} ({self.start_date} - {self.end_date})>'
@@ -117,7 +113,7 @@ class Review(db.Model):
                          unique=False,
                          nullable=False)
 
-    review_data = db.relationship("ReviewData", uselist=False, back_populates="parent")
+    review_data = db.relationship("ReviewData", uselist=False, backref=db.backref("review"))
 
     def __repr__(self):
         return f'<Review {self.review_id} for {self.target_id} by {self.author_id}>'
