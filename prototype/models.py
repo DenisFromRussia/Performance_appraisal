@@ -45,7 +45,7 @@ class User(db.Model):
     teams = db.relationship('Team', secondary=user_team, backref=db.backref('members'))
 
     def __repr__(self):
-        return f'<User {self.first_name} {self.last_name} ({self.email})>'
+        return f'<User {self.first_name} {self.last_name} ({self.email}) >'
 
 
 class Team(db.Model):
