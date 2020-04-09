@@ -1,4 +1,5 @@
 from . import db
+import datetime
 
 
 # many-to-many tables
@@ -42,7 +43,7 @@ class User(db.Model):
                            nullable=False)
 
     # many to many
-    teams = db.relationship('Team', secondary=user_team, backref=db.backref('members'))
+    teams = db.relationship('Team', secondary=user_team, backref=db.backref('members'), cascade='delete')
 
     def __repr__(self):
         return f'<User {self.first_name} {self.last_name} ({self.email}) >'
@@ -75,19 +76,23 @@ class Appraisal(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey('team.team_id'), nullable=False)
 
     start_date = db.Column(db.DateTime,
-                        index=False,
-                        unique=False,
-                        nullable=False)
+                           default=datetime.datetime.now,
+                           index=False,
+                           unique=False,
+                           nullable=False
+                           )
 
     end_date = db.Column(db.DateTime,
                         index=False,
                         unique=False,
-                        nullable=False)
+                        nullable=False
+                         )
 
     reviews = db.relationship('Review', backref='appraisal')
 
     def __repr__(self):
         return f'<Appraisal by team {self.team_id} ({self.start_date} - {self.end_date})>'
+
 
 class Review(db.Model):
     """Model for a review."""
@@ -103,10 +108,7 @@ class Review(db.Model):
     # one to one
     target_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
-    start_date = db.Column(db.DateTime,
-                           index=False,
-                           unique=False,
-                           nullable=False)
+    start_date = db.Column(db.DateTime, default=datetime.datetime.now)
 
     end_date = db.Column(db.DateTime,
                          index=False,
