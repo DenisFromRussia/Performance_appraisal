@@ -12,6 +12,7 @@ user_team = db.Table('user_team',
 
 # entity tables
 
+
 class User(db.Model):
     """Model for a user accounts."""
 
@@ -38,12 +39,14 @@ class User(db.Model):
                       nullable=True)
 
     role = db.Column(db.String(64),
-                           index=False,
-                           unique=False,
-                           nullable=False)
+                       index=False,
+                       unique=False,
+                       nullable=False)
 
     # many to many
-    teams = db.relationship('Team', secondary=user_team, backref=db.backref('members'), cascade='delete')
+    teams = db.relationship('Team', secondary=user_team, backref=db.backref('members'),
+                            cascade='all, delete'
+    )
 
     def __repr__(self):
         return f'<User {self.first_name} {self.last_name} ({self.email}) >'
@@ -83,10 +86,10 @@ class Appraisal(db.Model):
                            )
 
     end_date = db.Column(db.DateTime,
-                        index=False,
-                        unique=False,
-                        nullable=False
-                         )
+                            index=False,
+                            unique=False,
+                            nullable=False
+                             )
 
     reviews = db.relationship('Review', backref='appraisal')
 
@@ -115,7 +118,7 @@ class Review(db.Model):
                          unique=False,
                          nullable=False)
 
-    review_data = db.relationship("ReviewData", uselist=False, backref=db.backref("review"))
+    review_data = db.relationship("ReviewData", uselist=False, backref=db.backref("review"), cascade='delete')
 
     def __repr__(self):
         return f'<Review {self.review_id} for {self.target_id} by {self.author_id}>'

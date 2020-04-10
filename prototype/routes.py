@@ -34,17 +34,18 @@ def create_user():
     db.session.commit()
 
     # test if by deleting a user team will also deleted
-    # user = User.query.all()[-1]
-    # user.teams = [
-    #     Team(owner_id=new_user.user_id,
-    #         name=f'ДБД_{email}'
-    #         ),
-    #     Team(owner_id=new_user.user_id,
-    #         name=f'ДБСАПА_{email}'
-    #         )
-    # ]
+    user = User.query.all()[-1]
+    user.teams = [
+        Team(owner_id=new_user.user_id,
+            name=f'ДБД_{email}'
+            ),
+        Team(owner_id=new_user.user_id,
+            name=f'ДБСАПА_{email}'
+            )
+    ]
     db.session.commit()
     print("teams; ", Team.query.all())
+
     return make_response(f"{new_user} successfully created!")
 
 
@@ -56,11 +57,10 @@ def delete_user():
     email = req_dict['email'].lower()
 
     user = User.query.filter_by(email=email).all()
-    if len(user) > 1:
-        # if the unique feature doesn't work correctly
-        return make_response(f'sthg is wrong - have {len(user)} users with that email')
+
     if len(user) == 0:
-        return make_response(f'email {email} doesnt belong to any user')
+        return make_response(f'no user with email {email}')
+
     # list of one element
     user = user[0]
     db.session.delete(user)
@@ -78,19 +78,18 @@ def update_user():
         return make_response('No email given')
 
     user = User.query.filter_by(email=email).all()
-    if len(user) > 1:
-        return make_response(f'smthg is wrong - have {len(user)} users with that email')
+
     if len(user) == 0:
-        return make_response(f'no user with  email {email}')
+        return make_response(f'no user with email {email}')
 
     # only this way: user[0].update(...) doesn't work
     User.query.filter_by(email=email).update(req_dict)
     db.session.commit()
 
-    return make_response(f'{email} succesfully updated')
+    return make_response(f'{email} successfully updated')
 
 
-@app.route('/get_all_users', methods=['GET'])
+@app.route('/get_all_users', methods=['POST'])
 def get_all_users():
     """Return all users."""
 
@@ -100,25 +99,25 @@ def get_all_users():
     return make_response(jsonify(response))
 
 
-@app.route('/get_user', methods=['GET'])
+@app.route('/get_user', methods=['POST'])
 def get_user():
     """Get user info from DB by email."""
     req_dict = json.loads(request.data)
     email = req_dict['email'].lower()
 
     user = User.query.filter_by(email=email).all()
-    if len(user) > 1:
-        # if the unique feature doesn't works correct
-        return make_response(f'something is wrong - have {len(user)} users with that email')
     if len(user) == 0:
-        return make_response('this email doesnt belong to any user')
+        return make_response(f'no user with email {email}')
     # list of one element
     user = user[0]
-    print(user)
+    user_dict = user.__dict__
 
-    # return make_response(f'user info: \n {user}')
-    return make_response(jsonify(user.__dict__))
+    del user_dict['_sa_instance_state']
 
+    return make_response(jsonify(user_dict))
+
+
+# TODO function to add a user to a given team
 
 # Team CRUD
 
@@ -152,9 +151,7 @@ def delete_team():
     name = req_dict['name']
 
     team = Team.query.filter_by(name=name).all()
-    if len(team) > 1:
-        # if the unique feature doesn't work correctly
-        return make_response(f'sthg is wrong - have {len(team)} teams with this name')
+
     if len(team) == 0:
         return make_response(f'name {name} doesnt belong to any team')
     # list of one element
@@ -175,19 +172,17 @@ def update_team():
         return make_response('no name given')
 
     team = Team.query.filter_by(name=name).all()
-    if len(team) > 1:
-        return make_response(f'something is wrong - have {len(team)} teams with this name')
+
     if len(team) == 0:
         return make_response(f'name {name} doesnt belong to any team')
 
-    # only this way: user[0].update(...) doesn't work
     Team.query.filter_by(name=name).update(req_dict)
     db.session.commit()
 
-    return make_response('Succesfully updated')
+    return make_response(f'team {name} successfully updated')
 
 
-@app.route('/get_all_teams', methods=['GET'])
+@app.route('/get_all_teams', methods=['POST'])
 def get_all_teams():
     """Return all teams."""
 
@@ -198,7 +193,7 @@ def get_all_teams():
     return make_response(jsonify(response))
 
 
-@app.route('/get_team', methods=['GET'])
+@app.route('/get_team', methods=['POST'])
 def get_team():
     """Get team info from DB by its name."""
 
@@ -206,21 +201,22 @@ def get_team():
     name = req_dict['name']
 
     team = Team.query.filter_by(name=name).all()
-    if len(team) > 1:
-        # if the unique feature doesn't works correct
-        return make_response(f'smthg is wrong - have {len(team)} teams with this name')
+
     if len(team) == 0:
         return make_response('this name doesnt belong to any team')
     # list of one element
     team = team[0]
     team_dict = team.__dict__
+    del team_dict['_sa_instance_state']
 
     # add number of members
-    team_dict['size'] = len(team_dict['members'])
+    if 'members' in team_dict:
+        team_dict['size'] = len(team_dict['members'])
+    else:
+        team_dict['size'] = 0
 
     print(team_dict)
 
-    # return make_response(f'user info: \n {user}')
     return make_response(jsonify(team_dict))
 
 
@@ -282,7 +278,7 @@ def update_appraisal():
     return make_response('successfully updated')
 
 
-@app.route('/get_all_appraisals', methods=['GET'])
+@app.route('/get_all_appraisals', methods=['POST'])
 def get_all_appraisals():
     """Return all appraisals."""
 
@@ -293,7 +289,7 @@ def get_all_appraisals():
     return make_response(jsonify(response))
 
 
-@app.route('/get_appraisal', methods=['GET'])
+@app.route('/get_appraisal', methods=['POST'])
 def get_appraisal():
     """Get appraisal info from DB by its id."""
 
@@ -301,6 +297,8 @@ def get_appraisal():
     appraisal_id = req_dict['appraisal_id']
     appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).all()
     appraisal_dict = appraisal[0].__dict__
+
+    del appraisal_dict['_sa_instance_state']
 
     # add number of reviews
     appraisal_dict['number_of_reviews'] = len(appraisal_dict['reviews'])
@@ -331,9 +329,15 @@ def create_review():
     db.session.add(new_review)
     db.session.commit()
 
-    # add review data to ReviewData table
+    return make_response(f"{new_review} review has been created!")
 
-    review_id = new_review.review_id
+
+@app.route('/create_review_data', methods=['POST'])
+def create_review_data():
+    """Create review data."""
+
+    req_dict = json.loads(request.data)
+    review_id = req_dict['review_id']
     review_data = req_dict['review_data']
 
     if not review_data:
@@ -343,7 +347,7 @@ def create_review():
     db.session.add(new_review_data)
     db.session.commit()
 
-    return make_response(f"{new_review} review has been created!")
+    return 'review data was successfully created'
 
 
 @app.route('/delete_review', methods=['POST'])
@@ -369,7 +373,7 @@ def update_review():
 
     req_dict = json.loads(request.data)
 
-    review_id = req_dict.pop('review', None)
+    review_id = req_dict.pop('review_id', None)
 
     if not review_id:
         return make_response('No review id given')
@@ -380,7 +384,7 @@ def update_review():
     return make_response('successfully updated')
 
 
-@app.route('/get_all_reviews', methods=['GET'])
+@app.route('/get_all_reviews', methods=['POST'])
 def get_all_reviews():
     """Return all reviews."""
 
@@ -391,7 +395,7 @@ def get_all_reviews():
     return make_response(jsonify(response))
 
 
-@app.route('/get_review', methods=['GET'])
+@app.route('/get_review', methods=['POST'])
 def get_review():
     """Get review info from DB by its id."""
 
@@ -399,6 +403,8 @@ def get_review():
     review_id = req_dict['review_id']
     review = Review.query.filter_by(review_id=review_id).all()
     review_dict = review[0].__dict__
+
+    del review_dict['_sa_instance_state']
 
     # get review data
     review_data = ReviewData.query.filter_by(review_id=review_id).all()
@@ -414,10 +420,10 @@ def get_review():
 
 # get all user-team table
 
-@app.route('/get_all_user_team_connection', methods=['GET'])
-def get_all_user_team_connection():
-    """Return all user-teams connections."""
-
-    users_team_connections = user_team.query.all()
-    # return user-team connections
-    return make_response(jsonify(users_team_connections))
+# @app.route('/get_all_user_team_connection', methods=['POST'])
+# def get_all_user_team_connection():
+#     """Return all user-teams connections."""
+#
+#     users_team_connections = user_team.query.all()
+#     # return user-team connections
+#     return make_response(jsonify(users_team_connections))
