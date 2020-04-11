@@ -1,8 +1,10 @@
 # Performance_appraisal
 Автоматизация процесса оценки сотрудников 360
 
-Запуск проекта: python3 main.py
-Далее можно отправлять запросы на указанный localhost.
+Запуск проекта:
+1) cd prototype; mkdir models; cd ..
+2) python3 main.py
+3) Далее можно отправлять запросы на указанный localhost.
 
 Необходимые установки(позже добавится requirements.txt):
 
