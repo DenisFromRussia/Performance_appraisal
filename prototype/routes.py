@@ -5,425 +5,328 @@ from flask import current_app as app
 from prototype.models import db
 from prototype.models import User, Team, Appraisal, Review, ReviewData, user_team
 from flask import jsonify
-import json
+
+# TODO
+# Test cascade delete
+# Fix adding author and target in Review
 
 
 # User CRUD
 
-@app.route('/create_user', methods=['POST'])
-def create_user():
-    """Add new user to DB."""
+@app.route('/')
+@app.route('/user', methods=['POST', 'GET'])
+def users():
+    """CRUD for users."""
+    if request.method == 'GET':
+        users = User.query.all()
+        return make_response(jsonify(users=[user.serialize() for user in users]))
 
-    req_dict = json.loads(request.data)
-    first_name = req_dict['first_name'].lower()
-    last_name = req_dict['last_name'].lower()
-    email = req_dict['email'].lower()
-    role = req_dict['role'].lower()
-    avatar_url = req_dict['avatar_url'].lower()
+    elif request.method == 'POST':
+        first_name = request.args.get('first_name', '')
+        last_name = request.args.get('last_name', '')
+        email = request.args.get('email', '')
+        role = request.args.get('role', '')
+        avatar_url = request.args.get('avatar_url', '')
 
-    if not (first_name and last_name and email):
-        return make_response('not enough data')
+        new_user = User(first_name=first_name,
+                        last_name=last_name,
+                        email=email,
+                        role=role,
+                        avatar_url=avatar_url)
 
-    new_user = User(first_name=first_name,
-                    last_name=last_name,
-                    email=email,
-                    role=role,
-                    avatar_url=avatar_url)
-
-    db.session.add(new_user)
-    db.session.commit()
-
-    # test if by deleting a user team will also deleted
-    user = User.query.all()[-1]
-    user.teams = [
-        Team(owner_id=new_user.user_id,
-            name=f'ДБД_{email}'
-            ),
-        Team(owner_id=new_user.user_id,
-            name=f'ДБСАПА_{email}'
-            )
-    ]
-    db.session.commit()
-    print("teams; ", Team.query.all())
-
-    return make_response(f"{new_user} successfully created!")
+        db.session.add(new_user)
+        db.session.commit()
+        return make_response(jsonify(User=new_user.serialize()))
 
 
-@app.route('/delete_user', methods=['POST'])
-def delete_user():
-    """Delete user from DB by email."""
+@app.route('/user/<int:user_id>', methods=['GET', 'PUT', 'DELETE'])
+def user(user_id):
+    """CRUD for user."""
+    if request.method == 'GET':
+        new_user = User.query.filter_by(user_id=user_id).one()
+        return make_response(jsonify(users=new_user.serialize()))
 
-    req_dict = json.loads(request.data)
-    email = req_dict['email'].lower()
+    elif request.method == 'PUT':
+        first_name = request.args.get('first_name', '')
+        last_name = request.args.get('last_name', '')
+        email = request.args.get('email', '')
+        role = request.args.get('role', '')
+        avatar_url = request.args.get('avatar_url', '')
+        update_user = User.query.filter_by(user_id=user_id).one()
 
-    user = User.query.filter_by(email=email).all()
+        if first_name:
+            update_user.first_name = first_name
+        if last_name:
+            update_user.last_name = last_name
+        if email:
+            update_user.email = email
+        if role:
+            update_user.role = role
+        if avatar_url:
+            update_user.avatar_url = avatar_url
 
-    if len(user) == 0:
-        return make_response(f'no user with email {email}')
+        db.session.add(update_user)
+        db.session.commit()
+        return make_response('user with id {} has been updated'.format(user_id))
 
-    # list of one element
-    user = user[0]
-    db.session.delete(user)
-    db.session.commit()
-    return make_response(f'{email} successfully deleted')
-        
+    elif request.method == 'DELETE':
+        delete_user = User.query.filter_by(user_id=user_id).one()
+        db.session.delete(delete_user)
+        db.session.commit()
+        return make_response('user with id {} has been deleted'.format(user_id))
 
-@app.route('/update_user', methods=['POST'])
-def update_user():
-    """Update user info."""
-
-    req_dict = json.loads(request.data)     
-    email = req_dict.pop('email', None)
-    if not email:
-        return make_response('No email given')
-
-    user = User.query.filter_by(email=email).all()
-
-    if len(user) == 0:
-        return make_response(f'no user with email {email}')
-
-    # only this way: user[0].update(...) doesn't work
-    User.query.filter_by(email=email).update(req_dict)
-    db.session.commit()
-
-    return make_response(f'{email} successfully updated')
-
-
-@app.route('/get_all_users', methods=['POST'])
-def get_all_users():
-    """Return all users."""
-
-    users = User.query.all()
-    # return emails
-    response = [user.__repr__() for user in users]
-    return make_response(jsonify(response))
-
-
-@app.route('/get_user', methods=['POST'])
-def get_user():
-    """Get user info from DB by email."""
-    req_dict = json.loads(request.data)
-    email = req_dict['email'].lower()
-
-    user = User.query.filter_by(email=email).all()
-    if len(user) == 0:
-        return make_response(f'no user with email {email}')
-    # list of one element
-    user = user[0]
-    user_dict = user.__dict__
-
-    del user_dict['_sa_instance_state']
-
-    return make_response(jsonify(user_dict))
-
-
-# TODO function to add a user to a given team
 
 # Team CRUD
 
-@app.route('/create_team', methods=['POST'])
-def create_team():
-    """Add new team to DB."""
+@app.route('/team', methods=['POST', 'GET'])
+def teams():
+    """CRUD for teams."""
+    if request.method == 'GET':
+        teams = Team.query.all()
+        return make_response(jsonify(teams=[team.serialize() for team in teams]))
 
-    req_dict = json.loads(request.data)
+    elif request.method == 'POST':
+        owner_id = request.args.get('owner_id', '')
+        if owner_id:
+            owner_id = int(owner_id)
+            owner = User.query.filter_by(user_id=owner_id).one()
+        name = request.args.get('name', '')
 
-    # TODO get owner's email in request and find owner_id in backend
-    owner_id = int(req_dict['owner_id'])
-    name = req_dict['name']
+        new_team = Team(owner_id=owner,
+                        name=name
+                        )
 
-    if not (owner_id and name):
-        return make_response('not enough data')
-
-    new_team = Team(owner_id=owner_id, name=name)
-
-    db.session.add(new_team)
-    db.session.commit()
-
-    return make_response(f"{new_team} team successfully created!")
-
-
-@app.route('/delete_team', methods=['POST'])
-def delete_team():
-    """Delete team from DB its name."""
-
-    req_dict = json.loads(request.data)
-
-    name = req_dict['name']
-
-    team = Team.query.filter_by(name=name).all()
-
-    if len(team) == 0:
-        return make_response(f'name {name} doesnt belong to any team')
-    # list of one element
-    team = team[0]
-    db.session.delete(team)
-    db.session.commit()
-    return make_response(f'{name} team has been deleted')
+        owner.leading_teams.append(new_team)
+        db.session.add(new_team)
+        db.session.add(owner)
+        db.session.commit()
+        return make_response(jsonify(Team=new_team.serialize()))
 
 
-@app.route('/update_team', methods=['POST'])
-def update_team():
-    """Update team info."""
+@app.route('/team/<int:team_id>', methods=['GET', 'PUT', 'DELETE'])
+def team(team_id):
+    """CRUD for team."""
+    if request.method == 'GET':
+        team = Team.query.filter_by(team_id=team_id).one()
+        return make_response(jsonify(teams=team.serialize()))
 
-    req_dict = json.loads(request.data)
-    name = req_dict.pop('name', None)
+    elif request.method == 'PUT':
+        owner_id = request.args.get('owner_id', '')
+        if owner_id:
+            owner_id = int(owner_id)
+            owner = User.query.filter_by(user_id=owner_id).one()
+        name = request.args.get('name', '')
+        update_team = User.query.filter_by(team_id=team_id).one()
 
-    if not name:
-        return make_response('no name given')
+        if owner_id:
+            update_team.owner_id = owner
+        if name:
+            update_team.name = name
 
-    team = Team.query.filter_by(name=name).all()
+        db.session.add(update_team)
+        db.session.commit()
+        return make_response('team with id {} has been updated'.format(team_id))
 
-    if len(team) == 0:
-        return make_response(f'name {name} doesnt belong to any team')
-
-    Team.query.filter_by(name=name).update(req_dict)
-    db.session.commit()
-
-    return make_response(f'team {name} successfully updated')
-
-
-@app.route('/get_all_teams', methods=['POST'])
-def get_all_teams():
-    """Return all teams."""
-
-    teams = Team.query.all()
-
-    # return team names
-    response = [team.__repr__() for team in teams]
-    return make_response(jsonify(response))
-
-
-@app.route('/get_team', methods=['POST'])
-def get_team():
-    """Get team info from DB by its name."""
-
-    req_dict = json.loads(request.data)
-    name = req_dict['name']
-
-    team = Team.query.filter_by(name=name).all()
-
-    if len(team) == 0:
-        return make_response('this name doesnt belong to any team')
-    # list of one element
-    team = team[0]
-    team_dict = team.__dict__
-    del team_dict['_sa_instance_state']
-
-    # add number of members
-    if 'members' in team_dict:
-        team_dict['size'] = len(team_dict['members'])
-    else:
-        team_dict['size'] = 0
-
-    print(team_dict)
-
-    return make_response(jsonify(team_dict))
+    elif request.method == 'DELETE':
+        delete_team = Team.query.filter_by(team_id=team_id).all()[0]
+        db.session.delete(delete_team)
+        db.session.commit()
+        return make_response('team with id {} has been deleted'.format(team_id))
 
 
 # Appraisal CRUD
 
-@app.route('/create_appraisal', methods=['POST'])
-def create_appraisal():
-    """Add new appraisal to DB."""
-
-    req_dict = json.loads(request.data)
-
-    # TODO get team's name in request and find team_id in backend
-    team_id = int(req_dict['team_id'])
-    name = req_dict['name']
-    end_time = dt.strptime(req_dict['end_time'], format='%d/%m/%y %H:%M:%S')
-
-    if not (team_id and name and end_time):
-        return make_response('not enough data')
-
-    new_appraisal = Appraisal(team_id=team_id, name=name, end_time=end_time)
-
-    db.session.add(new_appraisal)
-    db.session.commit()
-
-    return make_response(f"{new_appraisal} appraisal has been created!")
-
-
-@app.route('/delete_appraisal', methods=['POST'])
-def delete_appraisal():
-    """Delete appraisal from DB by its id."""
-
-    req_dict = json.loads(request.data)
-
-    appraisal_id = int(req_dict['appraisal_id'])
-
-    appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).all()
-
-    # list of one element
-    appraisal = appraisal[0]
-    db.session.delete(appraisal)
-    db.session.commit()
-    return make_response(f'{appraisal} has been deleted')
-
-
-@app.route('/update_appraisal', methods=['POST'])
-def update_appraisal():
-    """Update appraisal info by its id."""
-
-    req_dict = json.loads(request.data)
-
-    appraisal_id = req_dict.pop('appraisal_id', None)
-
-    if not appraisal_id:
-        return make_response('No appraisal id given')
-
-    Appraisal.query.filter_by(appraisal_id=appraisal_id).update(req_dict)
-    db.session.commit()
-
-    return make_response('successfully updated')
-
-
-@app.route('/get_all_appraisals', methods=['POST'])
-def get_all_appraisals():
-    """Return all appraisals."""
-
-    appraisals = Appraisal.query.all()
-
-    # return a list of all appraisals
-    response = [appraisal.__repr__() for appraisal in appraisals]
-    return make_response(jsonify(response))
-
-
-@app.route('/get_appraisal', methods=['POST'])
-def get_appraisal():
-    """Get appraisal info from DB by its id."""
-
-    req_dict = json.loads(request.data)
-    appraisal_id = req_dict['appraisal_id']
-    appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).all()
-    appraisal_dict = appraisal[0].__dict__
-
-    del appraisal_dict['_sa_instance_state']
-
-    # add number of reviews
-    appraisal_dict['number_of_reviews'] = len(appraisal_dict['reviews'])
-
-    print(appraisal_dict)
-
-    return make_response(jsonify(appraisal_dict))
-
-
-# Review (and ReviewData) CRUD
-
-@app.route('/create_review', methods=['POST'])
-def create_review():
-    """Add new review to DB."""
-
-    req_dict = json.loads(request.data)
-
-    # TODO get author's and target's emails in request and find author_id and target_id in backend
-    author_id = int(req_dict['author_id'])
-    target_id = int(req_dict['target_id'])
-    end_date = dt.strptime(req_dict['end_date'], format='%d/%m/%y %H:%M:%S')
-
-    if not (author_id and target_id and end_date):
-        return make_response('not enough data')
-
-    new_review = Review(author_id=author_id, target_id=target_id, end_date=end_date)
-
-    db.session.add(new_review)
-    db.session.commit()
-
-    return make_response(f"{new_review} review has been created!")
-
-
-@app.route('/create_review_data', methods=['POST'])
-def create_review_data():
-    """Create review data."""
-
-    req_dict = json.loads(request.data)
-    review_id = req_dict['review_id']
-    review_data = req_dict['review_data']
-
-    if not review_data:
-        return make_response('no review data given')
-
-    new_review_data = ReviewData(review_id=review_id, review_data=review_data)
-    db.session.add(new_review_data)
-    db.session.commit()
-
-    return 'review data was successfully created'
-
-
-@app.route('/delete_review', methods=['POST'])
-def delete_review():
-    """Delete review from DB by its id."""
-
-    req_dict = json.loads(request.data)
-
-    review_id = int(req_dict['review_id'])
-
-    review = Review.query.filter_by(review_id=review_id).all()
-
-    # list of one element
-    review = review[0]
-    db.session.delete(review)
-    db.session.commit()
-    return make_response(f'{review} has been deleted')
-
-
-@app.route('/update_review', methods=['POST'])
-def update_review():
-    """Update review info by its id."""
-
-    req_dict = json.loads(request.data)
-
-    review_id = req_dict.pop('review_id', None)
-
-    if not review_id:
-        return make_response('No review id given')
-
-    Review.query.filter_by(review_id=review_id).update(req_dict)
-    db.session.commit()
-
-    return make_response('successfully updated')
-
-
-@app.route('/get_all_reviews', methods=['POST'])
-def get_all_reviews():
-    """Return all reviews."""
-
-    reviews = Review.query.all()
-
-    # return a list of all reviews
-    response = [review.__repr__() for review in reviews]
-    return make_response(jsonify(response))
-
-
-@app.route('/get_review', methods=['POST'])
-def get_review():
-    """Get review info from DB by its id."""
-
-    req_dict = json.loads(request.data)
-    review_id = req_dict['review_id']
-    review = Review.query.filter_by(review_id=review_id).all()
-    review_dict = review[0].__dict__
-
-    del review_dict['_sa_instance_state']
-
-    # get review data
-    review_data = ReviewData.query.filter_by(review_id=review_id).all()
-    review_data = review_data[0]
-
-    # add review data to review dict
-    review_dict['review_data'] = review_data
-
-    print(review_dict)
-
-    return make_response(jsonify(review_dict))
-
-
-# get all user-team table
-
-# @app.route('/get_all_user_team_connection', methods=['POST'])
-# def get_all_user_team_connection():
-#     """Return all user-teams connections."""
-#
-#     users_team_connections = user_team.query.all()
-#     # return user-team connections
-#     return make_response(jsonify(users_team_connections))
+@app.route('/appraisal', methods=['POST', 'GET'])
+def appraisals():
+    """CRUD for appraisals."""
+    if request.method == 'GET':
+        appraisals = Appraisal.query.all()
+        return make_response(jsonify(teams=[appraisal.serialize() for appraisal in appraisals]))
+
+    elif request.method == 'POST':
+        team_id = request.args.get('team_id', '')
+        if team_id:
+            team_id = int(team_id)
+            team = Team.query.filter_by(team_id=team_id).one()
+        start_date = request.args.get('start_date', '')
+        if start_date:
+            start_date = dt.strptime(start_date, '%d/%m/%y %H:%M:%S')
+        end_date = request.args.get('end_date', '')
+        if end_date:
+            end_date = dt.strptime(end_date, '%d/%m/%y %H:%M:%S')
+
+        if start_date:
+            new_appraisal = Appraisal(
+                                      start_date=start_date,
+                                      end_date=end_date
+                                      )
+        else:
+            new_appraisal = Appraisal(
+                                      end_date=end_date
+                                      )
+        team.appraisals.append(new_appraisal)
+        db.session.add(new_appraisal)
+        db.session.add(team)
+        db.session.commit()
+        return make_response(jsonify(Appraisal=new_appraisal.serialize()))
+
+
+@app.route('/appraisal/<int:appraisal_id>', methods=['GET', 'PUT', 'DELETE'])
+def appraisal(appraisal_id):
+    """CRUD for appraisal."""
+    if request.method == 'GET':
+        appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).one()
+        return make_response(jsonify(appraisals=appraisal.serialize()))
+
+    elif request.method == 'PUT':
+        team_id = request.args.get('team_id', '')
+        if team_id:
+            team_id = int(team_id)
+            team = Team.query.filter_by(team_id=team_id).one()
+        start_date = request.args.get('start_date', '')
+        if start_date:
+            start_date = dt.strptime(start_date, format='%d/%m/%y %H:%M:%S')
+        end_date = request.args.get('end_date', '')
+        if end_date:
+            end_date = dt.strptime(end_date, format='%d/%m/%y %H:%M:%S')
+
+        update_appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).one()
+
+        if team_id:
+            update_appraisal.team_id = team
+        if start_date:
+            update_appraisal.start_date = start_date
+        if end_date:
+            update_appraisal.end_date = end_date
+
+        db.session.add(update_appraisal)
+        db.session.commit()
+        return make_response('appraisal with id {} has been updated'.format(appraisal_id))
+
+    elif request.method == 'DELETE':
+        delete_appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).one()
+        db.session.delete(delete_appraisal)
+        db.session.commit()
+        return make_response('appraisal with id {} has been deleted'.format(appraisal_id))
+
+# Review CRUD
+
+
+@app.route('/review', methods=['POST', 'GET'])
+def reviews():
+    """CRUD for reviews."""
+    if request.method == 'GET':
+        reviews = Review.query.all()
+        return make_response(jsonify(reviews=[review.serialize() for review in reviews]))
+
+    elif request.method == 'POST':
+
+        appraisal_id = request.args.get('appraisal_id', '')
+        if appraisal_id:
+            appraisal_id = int(appraisal_id)
+            appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).one()
+
+        author_id = request.args.get('author_id', '')
+        if author_id:
+            author_id = int(author_id)
+            author = User.query.filter_by(user_id=author_id).one()
+
+        target_id = request.args.get('target_id', '')
+        if target_id:
+            target_id = int(target_id)
+            target = User.query.filter_by(user_id=target_id).one()
+
+        start_date = request.args.get('start_date', '')
+        if start_date:
+            start_date = dt.strptime(start_date, '%d/%m/%y %H:%M:%S')
+
+        end_date = request.args.get('end_date', '')
+        if end_date:
+            end_date = dt.strptime(end_date, '%d/%m/%y %H:%M:%S')
+
+        if start_date:
+            new_review = Review(start_date=start_date,
+                                end_date=end_date,
+                                author_id=author_id,
+                                target_id=target_id,
+                                appraisal_id=appraisal
+                                )
+        else:
+            new_review = Review(end_date=end_date,
+                                author_id=author_id,
+                                target_id=target_id,
+                                appraisal_id=appraisal
+                                )
+
+        print(appraisal.serialize())
+        db.session.add(new_review)
+        appraisal.reviews.append(new_review)
+        db.session.add(appraisal)
+        # print(author.serialize())
+        # print(new_review.serialize())
+        # print(appraisal.serialize())
+        db.session.commit()
+        return make_response(jsonify(Review=new_review.serialize()))
+
+
+@app.route('/review/<int:review_id>', methods=['GET', 'PUT', 'DELETE'])
+def review(review_id):
+    """CRUD for review."""
+    if request.method == 'GET':
+        review = Review.query.filter_by(review_id=review_id).one()
+        return make_response(jsonify(reviews=review.serialize()))
+
+    elif request.method == 'PUT':
+        appraisal_id = request.args.get('appraisal_id', '')
+        if appraisal_id:
+            appraisal_id = int(appraisal_id)
+            appraisal = Appraisal.query.filter_by(appraisal_id=appraisal_id).one()
+
+        author_id = request.args.get('author_id', '')
+        if author_id:
+            author_id = int(author_id)
+            author = User.query.filter_by(user_id=author_id).one()
+
+        target_id = request.args.get('target_id', '')
+        if target_id:
+            target_id = int(target_id)
+            target = User.query.filter_by(user_id=target_id).one()
+
+        start_date = request.args.get('start_date', '')
+        if start_date:
+            start_date = dt.strptime(start_date, '%d/%m/%y %H:%M:%S')
+
+        end_date = request.args.get('end_date', '')
+        if end_date:
+            end_date = dt.strptime(end_date, '%d/%m/%y %H:%M:%S')
+
+        review_data = request.args.get('review_data', '')
+        if review_data:
+            review_data_obj = ReviewData(review_id=review_id, review_data=review_data)
+
+        update_review = Review.query.filter_by(review_id=review_id).one()
+
+        if start_date:
+            update_review.start_date = start_date
+        if end_date:
+            update_review.end_date = end_date
+        if review_data:
+            update_review.review_data = review_data_obj
+
+        db.session.add(update_review)
+        review_data_obj.review_data = review_data
+        db.session.add(review_data_obj)
+        # db.session.commit()
+        # appraisal.reviews.append(update_review)
+        # author.reviews_author.append(update_review)
+        # target.reviews_target.append(update_review)
+        # db.session.add([appraisal, author, target])
+        db.session.commit()
+
+        return make_response('review with id {} has been updated'.format(review_id))
+
+    elif request.method == 'DELETE':
+        delete_review = Review.query.filter_by(review_id=review_id).one()
+        db.session.delete(delete_review)
+        db.session.commit()
+        return make_response('review with id {} has been deleted'.format(review_id))
